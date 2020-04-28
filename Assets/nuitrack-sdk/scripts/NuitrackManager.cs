@@ -17,7 +17,7 @@ public class NuitrackManager : MonoBehaviour
     // userTrackerModuleOn = false,
     // skeletonTrackerModuleOn = true;
 
-    private bool firstTime = false; //in order to prevent double NuitrackInit() calls on startup (in Awake and in OnApplicationPause)
+    //private bool firstTime = false; //in order to prevent double NuitrackInit() calls on startup (in Awake and in OnApplicationPause)
     private static nuitrack.SkeletonTracker skeletonTracker;
     public static nuitrack.SkeletonTracker SkeletonTracker {get {return skeletonTracker; }}
     private NuitrackInitState initState = NuitrackInitState.INIT_NUITRACK_MANAGER_NOT_INSTALLED;
@@ -25,10 +25,12 @@ public class NuitrackManager : MonoBehaviour
     static nuitrack.SkeletonData skeletonData;
     public static nuitrack.SkeletonData SkeletonData { get { return skeletonData; } }
     static nuitrack.Skeleton[] trackedSkeletons;
-    static nuitrack.Skeleton trackedSkeleton;
+    public static nuitrack.Skeleton trackedSkeleton;
+    public static int numOfSkeletons;
 
     [SerializeField] InitEvent initEvent;
     [SerializeField] bool runInBackground = false;
+    public static Quaternion SensorOrientation;
 
     public Text numSkeletonText;
 
@@ -60,6 +62,7 @@ public class NuitrackManager : MonoBehaviour
 
         // Add event handlers for all modules created (Subscribing to the onSkeletonUpdateEvent)
         skeletonTracker.OnSkeletonUpdateEvent += OnSkeletonUpdate;
+        skeletonTracker.OnNewUserEvent += onNewUser;
         
         // Run Nuitrack. This starts sensor data processing
         nuitrack.Nuitrack.Run();
@@ -72,13 +75,37 @@ public class NuitrackManager : MonoBehaviour
     }
     void OnSkeletonUpdate(nuitrack.SkeletonData _skeletonData)
     {
-        numSkeletonText.text = "Tracked skeletons:  LOL";
-
         skeletonData = _skeletonData;
 
         numSkeletonText.text = "Tracked skeletons: " + skeletonData.NumUsers.ToString();
+        numOfSkeletons = skeletonData.NumUsers;
+
+        trackedSkeletons = skeletonData.Skeletons;
+
+        if (numOfSkeletons > 0)
+        {
+            trackedSkeleton = trackedSkeletons[0];
+        }
 
     
+    }
+
+    void onNewUser(nuitrack.SkeletonTracker _skeletonTracker, int _userID)
+    {
+        //Debug.Log("NEW USER BOIS");
+        //UnityEngine.Vector3 torso = ToVector3(skeletonData.GetSkeletonByID(_userID).GetJoint(nuitrack.JointType.Torso));
+        //UnityEngine.Vector3 neck  = ToVector3(skeletonData.GetSkeletonByID(_userID).GetJoint(nuitrack.JointType.Neck));
+        //UnityEngine.Vector3 difference = neck - torso;
+
+        //Debug.Log(-Mathf.Atan2(difference.z, difference.y));
+
+        //SensorOrientation = Quaternion.Euler(-Mathf.Atan2(difference.z, difference.y) * Mathf.Rad2Deg, 0f, 0f);
+        
+    }
+
+    public static UnityEngine.Vector3 ToVector3(nuitrack.Joint joint)
+    {
+        return new UnityEngine.Vector3(joint.Real.X, joint.Real.Y, joint.Real.Z);
     }
 
 }
