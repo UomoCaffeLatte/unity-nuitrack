@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class AvatarMovement : MonoBehaviour
 {
@@ -9,6 +10,9 @@ public class AvatarMovement : MonoBehaviour
     ModelJoint[] modelJoints;
 
     Dictionary<nuitrack.JointType, ModelJoint> jointsRigged = new Dictionary<nuitrack.JointType, ModelJoint>();
+    private static float waitTime = 10.0f;
+    private static float timer = 0.0f;
+    public Text BoneScalingProgress;
 
     // Start is called before the first frame update
     void Start()
@@ -43,32 +47,47 @@ public class AvatarMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-       if (NuitrackManager.numOfSkeletons > 0 )
+       if (NuitrackManager.NumUsers > 0 )
        {
+
+            if (timer <= waitTime)
+            {
+                timer += Time.deltaTime;
+                BoneScalingProgress.text = "Bone Scaling: In Progress...";
+            } else if (timer >= waitTime) {
+                BoneScalingProgress.text = "Bone Scaling: Completed";
+            }
+
+           // get ID of user
+           nuitrack.User[] users  = NuitrackManager.Users;
+           nuitrack.User CurrentUser = users[0];
+           int CurrentUserID = CurrentUser.ID;
+
             foreach (var riggedJoint in jointsRigged)
             {
                 //Get joint from the Nuitrack
-                nuitrack.Joint joint = NuitrackManager.trackedSkeleton.GetJoint(riggedJoint.Key);
-               
+                nuitrack.Joint joint = NuitrackManager.SkeletonData.GetSkeletonByID(CurrentUserID).GetJoint(riggedJoint.Key);
+            
                 if (joint.Confidence > 0.5) //Currently, there are only two values of confidence: 0 (Nuitrack thinks that this isn't a joint) and 0.75 (a joint).
                 {
                     ModelJoint modeljoint = riggedJoint.Value; //get modelJoint
-                    nuitrack.Joint parentjoint = NuitrackManager.trackedSkeleton.GetJoint(modeljoint.parentJointType);
+                    nuitrack.Joint parentjoint = NuitrackManager.SkeletonData.GetSkeletonByID(CurrentUserID).GetJoint(modeljoint.parentJointType);
 
-                    Vector3 newPos = 0.001f * ToVector3(joint); //given in mm
-                    Vector3 parentPos = 0.001f * ToVector3(parentjoint);
+                    Vector3 newPos = 0.001f * joint.ToVector3(); //given in mm
+                    Vector3 parentPos = 0.001f * parentjoint.ToVector3();
 
                     // Coinvert nuitrack joint orientation to quaternion
-                    Quaternion jointOrient = ToQuaternion(joint);
+                    Quaternion jointOrient = joint.ToQuaternion();
 
                     // Update Model joint to tracked orientation
                     
                     modeljoint.bone.rotation = jointOrient * modeljoint.baseRotOffset;
                  
-
-                    // perform bone  scaling
-                    if (modeljoint.parentBone != null)
+                        
+                    // perform bone  scaling for 5 seconds at the start maybe?
+                    if (modeljoint.parentBone != null && timer <= waitTime)
                     {
+                        Debug.Log("BONE SCALING PERFORMED...........");
                         // take the transform of the parent bone
                         //Transform parentBone = modeljoint.parentBone;
                         // calculate how many times the distance between the child bone and its parent bone has changed compared to the base distances (which was recorded at the start)
@@ -81,20 +100,6 @@ public class AvatarMovement : MonoBehaviour
             }   
 
        }
-    }
-
-    public static Vector3 ToVector3(nuitrack.Joint joint)
-    {
-        return new Vector3(joint.Real.X, joint.Real.Y, joint.Real.Z);
-    }
-
-    // Learn how this works
-    public static Quaternion ToQuaternion(nuitrack.Joint joint)
-    {
-        Vector3 jointUp = new Vector3(joint.Orient.Matrix[1], joint.Orient.Matrix[4], joint.Orient.Matrix[7]);   //Y(Up)
-        Vector3 jointForward = new Vector3(joint.Orient.Matrix[2], joint.Orient.Matrix[5], joint.Orient.Matrix[8]);   //Z(Forward)
-
-        return Quaternion.LookRotation(jointForward, jointUp);
     }
 }
 

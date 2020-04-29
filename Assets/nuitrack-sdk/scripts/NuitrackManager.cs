@@ -19,37 +19,45 @@ public class NuitrackManager : MonoBehaviour
 
     //private bool firstTime = false; //in order to prevent double NuitrackInit() calls on startup (in Awake and in OnApplicationPause)
     private static nuitrack.SkeletonTracker skeletonTracker;
-    public static nuitrack.SkeletonTracker SkeletonTracker {get {return skeletonTracker; }}
-    private NuitrackInitState initState = NuitrackInitState.INIT_NUITRACK_MANAGER_NOT_INSTALLED;
-    public NuitrackInitState InitState { get { return NuitrackAndroidLoader.initState; }}
-    static nuitrack.SkeletonData skeletonData;
-    public static nuitrack.SkeletonData SkeletonData { get { return skeletonData; } }
-    static nuitrack.Skeleton[] trackedSkeletons;
-    public static nuitrack.Skeleton trackedSkeleton;
-    public static int numOfSkeletons;
+    private static nuitrack.SkeletonData skeletonData;
+    public static nuitrack.SkeletonData SkeletonData {get { return skeletonData; }}
+    private static nuitrack.UserTracker userTracker;
+    private static int numUsers;
+    public static int NumUsers {get {return numUsers; }}
+    private static nuitrack.User[] users;
+    public static nuitrack.User[] Users {get { return users; }}
+    private static nuitrack.ColorSensor colourSensor;
+    private static nuitrack.ColorFrame colourFrame;
+    public static nuitrack.ColorFrame ColourFrame {get { return colourFrame; }}
+    public static event nuitrack.ColorSensor.OnUpdate onColorUpdate;
+    private static NuitrackInitState initState = NuitrackInitState.INIT_NUITRACK_MANAGER_NOT_INSTALLED;
+    public static NuitrackInitState InitState {get { return initState; }}
+
 
     [SerializeField] InitEvent initEvent;
-    [SerializeField] bool runInBackground = false;
-    public static Quaternion SensorOrientation;
 
-    public Text numSkeletonText;
 
     void Awake()
     {
         initState = NuitrackAndroidLoader.InitNuitrackLibraries();
 
-        if (initEvent != null)
+        if (initEvent != null) // Triggers for any listeners 
         {
             initEvent.Invoke(initState);
         }
 
         Screen.sleepTimeout = SleepTimeout.NeverSleep;
         Application.targetFrameRate = 60;
-        Application.runInBackground = runInBackground;
 
         if (initState == NuitrackInitState.INIT_OK)
         {
             NuitrackInit();
+
+            nuitrack.Nuitrack.SetConfigValue("AstraProPerseeDepthProvider.RGB.Width","1280");
+            nuitrack.Nuitrack.SetConfigValue("AstraProPerseeDepthProvider.RGB.Height","720");
+            nuitrack.Nuitrack.SetConfigValue("AstraProPerseeDepthProvider.Depth.Width","640");
+            nuitrack.Nuitrack.SetConfigValue("AstraProPerseeDepthProvider.Depth.Height","480");
+            nuitrack.Nuitrack.SetConfigValue("Skeletonization.MaxDistance","7000");
         }
     }
 
@@ -59,53 +67,52 @@ public class NuitrackManager : MonoBehaviour
     
         // Create and setup all required modules
         skeletonTracker = nuitrack.SkeletonTracker.Create();
+        userTracker = nuitrack.UserTracker.Create();
+        colourSensor = nuitrack.ColorSensor.Create();
 
         // Add event handlers for all modules created (Subscribing to the onSkeletonUpdateEvent)
-        skeletonTracker.OnSkeletonUpdateEvent += OnSkeletonUpdate;
-        skeletonTracker.OnNewUserEvent += onNewUser;
+        skeletonTracker.OnSkeletonUpdateEvent += onSkeletonUpdate;
+        userTracker.OnUpdateEvent += onUpdateUser;
+        colourSensor.OnUpdateEvent += onColorSensorUpdate;
         
         // Run Nuitrack. This starts sensor data processing
         nuitrack.Nuitrack.Run();
         Debug.Log("Run OK");
     }
 
-    void FixedUpdate()
+    void onNewUser(int _userID)
     {
-        nuitrack.Nuitrack.Update();
+
     }
-    void OnSkeletonUpdate(nuitrack.SkeletonData _skeletonData)
+
+    void onUpdateUser(nuitrack.UserFrame _userFrame)
     {
-        skeletonData = _skeletonData;
+        numUsers = _userFrame.NumUsers;
+        users = _userFrame.Users;
+    }
 
-        numSkeletonText.text = "Tracked skeletons: " + skeletonData.NumUsers.ToString();
-        numOfSkeletons = skeletonData.NumUsers;
-
-        trackedSkeletons = skeletonData.Skeletons;
-
-        if (numOfSkeletons > 0)
+    void onSkeletonUpdate(nuitrack.SkeletonData _skeletonData)
+    {
+        if (_skeletonData.NumUsers > 0)
         {
-            trackedSkeleton = trackedSkeletons[0];
+            skeletonData = _skeletonData;
         }
-
-    
     }
 
-    void onNewUser(nuitrack.SkeletonTracker _skeletonTracker, int _userID)
+    void onColorSensorUpdate(nuitrack.ColorFrame _frame)
     {
-        //Debug.Log("NEW USER BOIS");
-        //UnityEngine.Vector3 torso = ToVector3(skeletonData.GetSkeletonByID(_userID).GetJoint(nuitrack.JointType.Torso));
-        //UnityEngine.Vector3 neck  = ToVector3(skeletonData.GetSkeletonByID(_userID).GetJoint(nuitrack.JointType.Neck));
-        //UnityEngine.Vector3 difference = neck - torso;
-
-        //Debug.Log(-Mathf.Atan2(difference.z, difference.y));
-
-        //SensorOrientation = Quaternion.Euler(-Mathf.Atan2(difference.z, difference.y) * Mathf.Rad2Deg, 0f, 0f);
+        colourFrame = _frame;
         
+        if (onColorUpdate != null) onColorUpdate(colourFrame); //prevents error occuring incase nothing has been assigned to the delegate 
     }
 
-    public static UnityEngine.Vector3 ToVector3(nuitrack.Joint joint)
+    void Update()
     {
-        return new UnityEngine.Vector3(joint.Real.X, joint.Real.Y, joint.Real.Z);
+        if (NuitrackAndroidLoader.initState == NuitrackInitState.INIT_OK)
+        {
+            nuitrack.Nuitrack.Update();
+        }
     }
+
 
 }
